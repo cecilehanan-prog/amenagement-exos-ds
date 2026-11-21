@@ -27,7 +27,7 @@ function chargerExo(){
 
 const liste = v => String(v || '').split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
 const ORIGINES = liste(process.env.ORIGINES || 'https://cecilehanan-prog.github.io');
-const CODES = liste(process.env.CODES_CLASSE).map(s => s.toUpperCase());
+const CODES = liste(process.env.CODES_CLASSE || process.env.CODE_CLASSE).map(s => s.toUpperCase());
 const MODELE = process.env.MODELE || 'claude-opus-5-5';
 const EFFORT = process.env.EFFORT || 'medium';
 const LIMITE_HEURE = Number(process.env.LIMITE_HEURE) || 40;   // fiches par heure et par code de classe
