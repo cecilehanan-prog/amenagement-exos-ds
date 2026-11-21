@@ -1,5 +1,5 @@
-/* Adresse de la fonction Firebase / Google Cloud qui garde la clé Claude.
-   À remplacer par l'adresse donnée par la console après la mise en ligne (étape 3 du guide). */
+/* Adresse de la fonction (hébergée gratuitement sur Vercel) qui garde la clé Claude cachée.
+   Sur le site Vercel lui-même, l'adresse courte /api/amenager suffit. */
 window.CONFIG = {
-  fonction: 'https://REMPLACER-PAR-L-ADRESSE-DE-LA-FONCTION'
+  fonction: location.hostname.endsWith('.vercel.app') ? '/api/amenager' : 'https://REMPLACER-PAR-L-ADRESSE-VERCEL/api/amenager'
 };

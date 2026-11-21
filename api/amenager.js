@@ -1,22 +1,22 @@
 /* Fonction « amenager » : reçoit les photos d'une page d'exercices, les envoie à Claude avec la consigne
    de l'Atelier pédagogique (exo.js, la même que dans l'atelier), et renvoie l'exercice aménagé en JSON.
-   - La clé API Anthropic reste ici, cachée (variable ANTHROPIC_API_KEY, tirée de Secret Manager).
+   Hébergée gratuitement sur Vercel (formule Hobby), à partir de ce dépôt GitHub.
+   - La clé API Anthropic reste ici, cachée (variable d'environnement ANTHROPIC_API_KEY réglée dans Vercel).
    - Accès réservé aux codes de classe listés dans CODES_CLASSE (séparés par des virgules).
    - Aucune photo n'est enregistrée : elles ne passent qu'en mémoire, le temps de la demande. Rien n'est écrit dans les journaux. */
-const functions = require('@google-cloud/functions-framework');
 const Anthropic = require('@anthropic-ai/sdk');
 const vm = require('vm');
 const fs = require('fs');
 const path = require('path');
 
 /* exo.js est le fichier de l'atelier, recopié tel quel dans le site : on en tire les consignes pour Claude.
-   La fonction le lit sur le site (GitHub Pages) au démarrage ; s'il est posé à côté d'index.js, elle prend celui-là. */
+   Il est livré avec la fonction (vercel.json → includeFiles) ; à défaut, elle le lit sur le site GitHub Pages. */
 const EXO_URL = process.env.EXO_URL || 'https://cecilehanan-prog.github.io/amenagement-exos-ds/exo.js';
 let exoP = null;
 function chargerExo(){
   if (!exoP) exoP = (async () => {
-    const local = path.join(__dirname, 'exo.js');
-    const code = fs.existsSync(local) ? fs.readFileSync(local, 'utf8') : await (await fetch(EXO_URL)).text();
+    const local = [path.join(process.cwd(), 'exo.js'), path.join(__dirname, '..', 'exo.js')].find(f => fs.existsSync(f));
+    const code = local ? fs.readFileSync(local, 'utf8') : await (await fetch(EXO_URL)).text();
     const bac = {window: {}};
     vm.runInNewContext(code, bac);
     if (!bac.window.Exo || typeof bac.window.Exo.consigne !== 'function') throw new Error('exo.js illisible');
@@ -64,10 +64,10 @@ async function demander(params){
   }
 }
 
-functions.http('amenager', async (req, res) => {
-  const origine = req.get('origin') || '';
-  if (ORIGINES.includes(origine) || ORIGINES.includes('*')) { res.set('Access-Control-Allow-Origin', origine); res.set('Vary', 'Origin'); }
-  if (req.method === 'OPTIONS') { res.set('Access-Control-Allow-Methods', 'POST'); res.set('Access-Control-Allow-Headers', 'Content-Type'); res.set('Access-Control-Max-Age', '3600'); return res.status(204).send(''); }
+module.exports = async (req, res) => {
+  const origine = req.headers.origin || '';
+  if (ORIGINES.includes(origine) || ORIGINES.includes('*')) { res.setHeader('Access-Control-Allow-Origin', origine); res.setHeader('Vary', 'Origin'); }
+  if (req.method === 'OPTIONS') { res.setHeader('Access-Control-Allow-Methods', 'POST'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type'); res.setHeader('Access-Control-Max-Age', '3600'); return res.status(204).send(''); }
   if (req.method !== 'POST') return res.status(405).json({erreur: 'methode'});
 
   const b = req.body || {};
@@ -120,4 +120,4 @@ functions.http('amenager', async (req, res) => {
     if (s === 401 || s === 403) return res.status(500).json({erreur: 'cle', message: 'La clé du serveur ne marche pas. Préviens l’enseignante.'});
     return res.status(500).json({erreur: 'serveur', message: 'Ça n’a pas marché. Réessaie.'});
   }
-});
+};

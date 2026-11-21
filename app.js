@@ -43,7 +43,7 @@ function setMsg(t, err){ const m = $('#msg'); if (m){ m.textContent = t || ''; m
 /* ---------- appel à la fonction ---------- */
 async function appeler(corps, signal){
   const url = (window.CONFIG && CONFIG.fonction) || '';
-  if (!/^https:\/\//.test(url) || /REMPLACER/.test(url)) throw {message: 'L’appli n’est pas encore reliée à son serveur (adresse à mettre dans config.js).'};
+  if (!/^(https:\/\/|\/)/.test(url) || /REMPLACER/.test(url)) throw {message: 'L’appli n’est pas encore reliée à son serveur (adresse à mettre dans config.js).'};
   let r;
   try { r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corps), signal}); }
   catch(e){ if (e && e.name === 'AbortError') throw {message: 'Arrêté.'}; throw {message: 'Pas de connexion au serveur. Vérifie le réseau (wifi ou 4G).'}; }
@@ -144,13 +144,13 @@ function ecranPrep(msg){
 function lireChamps(){ const m = $('#matiere'), c = $('#consignes'); if (m) st.matiere = m.value.trim(); if (c) st.consignes = c.value.trim(); }
 
 /* photo → JPEG de 1600 px au plus (plus léger à envoyer, et suffisant pour lire la page) */
-function versJpeg(f){
+function versJpeg(f, cote, qualite){
   return new Promise((ok, ko) => {
     const u = URL.createObjectURL(f), im = new Image();
-    im.onload = () => { URL.revokeObjectURL(u); const k = Math.min(1, 1600 / Math.max(im.naturalWidth, im.naturalHeight)), cv = document.createElement('canvas');
+    im.onload = () => { URL.revokeObjectURL(u); const k = Math.min(1, (cote || 1600) / Math.max(im.naturalWidth, im.naturalHeight)), cv = document.createElement('canvas');
       cv.width = Math.round(im.naturalWidth * k); cv.height = Math.round(im.naturalHeight * k);
       const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(im, 0, 0, cv.width, cv.height);
-      cv.toBlob(b => b ? ok(b) : ko(new Error('jpeg')), 'image/jpeg', .85); };
+      cv.toBlob(b => b ? ok(b) : ko(new Error('jpeg')), 'image/jpeg', qualite || .85); };
     im.onerror = () => { URL.revokeObjectURL(u); ko(new Error('image')); };
     im.src = u;
   });
@@ -168,7 +168,13 @@ async function preparer(){
   let n = 0; const t = setInterval(() => { n = Math.min(n + 1, etapes.length - 1); const e = $('#etape'); if (e) e.textContent = etapes[n]; }, 25000);
   $('#stop').onclick = () => st.ctl.abort();
   try {
-    const images = await Promise.all(st.photos.map(p => enBase64(p.blob)));
+    let images = await Promise.all(st.photos.map(p => enBase64(p.blob)));
+    // le serveur accepte environ 4 Mo par envoi : si c'est trop lourd, on réduit les photos
+    for (const [cote, q] of [[1300, .75], [1000, .7]]){
+      if (images.reduce((n, x) => n + x.length, 0) < 3800000) break;
+      for (const p of st.photos) p.blob = await versJpeg(p.blob, cote, q);
+      images = await Promise.all(st.photos.map(p => enBase64(p.blob)));
+    }
     const j = await appeler({action: 'amenager', code: st.code, forme: st.forme, profils: st.profils, langue: st.langue, classe: st.classe, matiere: st.matiere, consignes: st.consignes, images}, st.ctl.signal);
     const rep = j.resultat;
     const base = {subject: st.matiere, level: st.classe, theme: Exo.themeDe(st.classe), author: '', dossier: '', profils: st.profils.slice(), langue: st.profils.includes('allo') ? st.langue : ''};
