@@ -47,7 +47,7 @@ async function appeler(corps, signal){
   if (!/^(https:\/\/|\/)/.test(url) || /REMPLACER/.test(url)) throw {message: 'L’appli n’est pas encore reliée à son serveur (adresse à mettre dans config.js).'};
   let r;
   try { r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corps), signal}); }
-  catch(e){ if (e && e.name === 'AbortError') throw {message: 'Arrêté.'}; throw {message: 'Pas de connexion au serveur. Vérifie le réseau (wifi ou 4G).'}; }
+  catch(e){ if (e && e.name === 'AbortError') throw {message: 'Arrêté.'}; throw {message: navigator.onLine === false ? 'Pas d’internet : pour préparer, il faut le wifi ou la 4G. Ensuite, tu pourras couper internet.' : 'Pas de connexion au serveur. Vérifie le réseau (wifi ou 4G).'}; }
   let j = null; try { j = await r.json(); } catch(e){}
   if (!r.ok || !j || !j.ok) throw {status: r.status, code: j && j.erreur, message: (j && j.message) || 'Ça n’a pas marché. Réessaie.'};
   return j;
@@ -442,6 +442,9 @@ async function preparerRevision(){
     ecranRevision((e && e.message) || 'Ça n’a pas marché. Réessaie.');
   }
 }
+
+/* mode hors ligne : l'appli se garde sur le téléphone (sw.js) */
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 /* départ */
 const codePerdu = () => { st.code = ''; lsSet('am-code', null); ecranCode('Ce code de classe ne marche plus. Demande le nouveau code.'); };

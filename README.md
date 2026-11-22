@@ -16,3 +16,5 @@ pour les élèves (en autonomie) et les AESH. Pas de compte Claude à créer.
 
 Aucune photo n'est enregistrée : elles passent seulement par la fonction Vercel, le temps de la demande.
 Le dernier exercice reste sur le téléphone de l'élève (stockage du navigateur).
+
+Hors ligne : `sw.js` garde l'appli sur le téléphone. Une fois l'exercice préparé (avec internet), il se fait en mode avion ; avec l'Accès guidé de l'iPhone, l'élève ne peut pas quitter l'appli pour chercher les réponses.
