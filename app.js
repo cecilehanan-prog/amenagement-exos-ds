@@ -184,7 +184,7 @@ async function preparer(){
     doc.adapt.main = st.main;
     await Exo.decouper(doc, st.photos.map(p => p.blob));   // les figures de la page sont découpées ici, sur le téléphone
     clearInterval(t);
-    st.photos.forEach(p => URL.revokeObjectURL(p.url)); st.photos = []; st.consignes = '';
+    // les photos restent en mémoire (jamais enregistrées) : « Changer mes choix » peut refaire la fiche sans reprendre de photo
     const reserves = String(rep.reserves || '').slice(0, 600);
     ecranJeu(doc, reserves);
   } catch(e){
@@ -198,34 +198,115 @@ async function preparer(){
 const dernier = () => { try { return JSON.parse(lsGet('am-dernier') || 'null'); } catch(e){ return null; } };
 function sauver(doc, reserves){ if (!lsSet('am-dernier', JSON.stringify({doc, reserves}))) { const d = JSON.parse(JSON.stringify(doc)); (d.questions || []).forEach(q => { delete q.illus; }); (d.blocs || []).forEach(b => { delete b.img; }); lsSet('am-dernier', JSON.stringify({doc: d, reserves})); } }
 
+function oublierPhotos(){ st.photos.forEach(p => URL.revokeObjectURL(p.url)); st.photos = []; st.consignes = ''; }
+
 function ecranJeu(doc, reserves){
   if (!document.getElementById('xq-css')){ const s = document.createElement('style'); s.id = 'xq-css'; s.textContent = Exo.CSS_LECTEUR; document.head.append(s); }
   sauver(doc, reserves);
+  const reps = JSON.parse(JSON.stringify(doc.reponses || {}));
+  const repondu = r => Object.keys(r || {}).some(k => k.charAt(0) !== '_');
+  const peutRevenir = st.photos.length > 0 && !repondu(reps);
   app.innerHTML = `<div class="barre">
-      <button class="btn" id="nouveau">📷 Nouvelle</button>
-      <button class="btn" id="imprimer">🖨 Imprimer</button>
-      <button class="btn" id="telecharger" title="Télécharger l’exercice : il s’ouvre même sans internet">⬇ Garder</button>
+      <button class="btn" id="nouveau"><span aria-hidden="true">📷</span>Nouvelle</button>
+      <button class="btn" id="imprimer"><span aria-hidden="true">🖨</span>Imprimer</button>
+      <button class="btn" id="pdf"><span aria-hidden="true">📄</span>PDF</button>
+      <button class="btn" id="photo"><span aria-hidden="true">🖼</span>Photo</button>
+      <button class="btn" id="telecharger" title="Télécharger l’exercice : il s’ouvre même sans internet"><span aria-hidden="true">⬇</span>Garder</button>
     </div>
+    ${peutRevenir ? `<div class="retour"><button class="btn" id="retour">◀ Je me suis trompé : changer mes choix</button></div>` : ''}
     ${reserves ? `<details class="reserves"><summary>⚠️ À vérifier par l’adulte</summary><p>${esc(reserves)}</p></details>` : ''}
     <div class="titre-exo">${esc(doc.title)}</div>
     <div id="jeu"><div class="xq"></div></div>`;
-  const reps = JSON.parse(JSON.stringify(doc.reponses || {}));
   let t0 = null;
-  const save = r => { doc.reponses = r; doc.reponduLe = Date.now(); clearTimeout(t0); t0 = setTimeout(() => sauver(doc, reserves), 500); };
-  Exo.jouer(app.querySelector('#jeu .xq'), doc, reps, save, {imprimer: () => imprimer(doc), libelleImprimer: '🖨 Imprimer ma copie'});
-  $('#nouveau').onclick = () => { if (st.code) ecranPrep(); else ecranCode(); window.scrollTo(0, 0); };
+  const save = r => { doc.reponses = r; doc.reponduLe = Date.now(); clearTimeout(t0); t0 = setTimeout(() => sauver(doc, reserves), 500);
+    if (repondu(r)){ const b = $('.retour'); if (b) b.remove(); } };
+  const racine = app.querySelector('#jeu .xq');
+  Exo.jouer(racine, doc, reps, save, {imprimer: () => imprimer(doc), libelleImprimer: '🖨 Imprimer ma copie'});
+  // fin de l'exercice : à côté de « Imprimer ma copie », les boutons PDF et Photo
+  const finBoutons = () => {
+    // le bouton « changer mes choix » ne sert qu'avant de commencer : il part dès la première question
+    if (racine.querySelector('[data-a="suiv"],[data-a="finir"],[data-a="prec"],.xq-fin:not(.xq-pause)')){ const b = $('.retour'); if (b) b.remove(); }
+    const nav = racine.querySelector('.xq-fin:not(.xq-pause) .xq-nav'); if (!nav || nav.querySelector('[data-am]')) return;
+    nav.insertAdjacentHTML('beforeend', '<button class="xq-btn" data-am="pdf">📄 Mon PDF</button><button class="xq-btn" data-am="photo">🖼 Ma copie en photo</button><button class="xq-btn" data-am="accueil">🏠 Accueil</button>');
+    nav.querySelector('[data-am="accueil"]').onclick = () => $('#nouveau').onclick();
+    nav.querySelector('[data-am="pdf"]').onclick = () => copie(doc, 'pdf');
+    nav.querySelector('[data-am="photo"]').onclick = () => copie(doc, 'photo'); };
+  new MutationObserver(finBoutons).observe(racine, {childList: true, subtree: true}); finBoutons();
+  $('#nouveau').onclick = () => { oublierPhotos(); if (st.code) ecranPrep(); else ecranCode(); window.scrollTo(0, 0); };
+  const rt = $('#retour'); if (rt) rt.onclick = () => { ecranPrep(); window.scrollTo(0, 0); };
   $('#imprimer').onclick = () => imprimer(doc);
+  $('#pdf').onclick = () => copie(doc, 'pdf');
+  $('#photo').onclick = () => copie(doc, 'photo');
   $('#telecharger').onclick = () => Exo.exporter(doc);
   window.scrollTo(0, 0);
 }
 
 /* copie A4 : la même que dans l'atelier, avec les réponses de l'élève (sans correction) */
-function imprimer(doc){
+function construireCopie(doc){
   const host = $('#copie'); host.innerHTML = '';
   const p = (doc.profils || []).includes('dys') ? 'dys' : (doc.profils || []).includes('tdah') ? 'tdah' : 'std';
-  try { Exo.construire(doc, p, {copie: 'eleve'}, host); }
-  catch(e){ window.print(); return; }
-  setTimeout(() => window.print(), 300);
+  Exo.construire(doc, p, {copie: 'eleve'}, host);
+  return [...host.querySelectorAll('.pg')];
+}
+async function imprimer(doc){
+  try { construireCopie(doc); await attendreChargement($('#copie')); construireCopie(doc); await attendreChargement($('#copie')); } catch(e){}
+  window.print();
+}
+
+/* PDF ou photos de la copie : on fabrique les pages en images sur le téléphone, puis on propose de les enregistrer
+   (sur iPhone : « Enregistrer l'image » les met dans Photos, pour les joindre ensuite à un message Pronote). */
+const LIBS = {h2c: 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', pdf: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'};
+const charge = {};
+const script = u => charge[u] || (charge[u] = new Promise((ok, ko) => { const s = document.createElement('script'); s.src = u; s.onload = ok; s.onerror = () => { delete charge[u]; ko(new Error('script')); }; document.head.append(s); }));
+const enBlob = (cv, type, q) => new Promise(ok => cv.toBlob(ok, type, q));
+function fenetre(html){
+  const f = document.createElement('div'); f.className = 'fenetre'; f.setAttribute('role', 'dialog');
+  f.innerHTML = `<div class="boite">${html}</div>`; document.body.append(f);
+  f.addEventListener('click', e => { if (e.target === f || e.target.closest('[data-fermer]')) f.remove(); });
+  return f;
+}
+async function attendreChargement(el){
+  const imgs = [...el.querySelectorAll('img')].filter(i => !i.complete);
+  await Promise.race([Promise.all([document.fonts ? document.fonts.ready : null, ...imgs.map(i => new Promise(r => { i.onload = i.onerror = r; }))]), new Promise(r => setTimeout(r, 4000))]);
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+}
+async function copie(doc, quoi){
+  const f = fenetre(`<div class="rond" aria-hidden="true"></div><p style="text-align:center;font-weight:600">Je prépare ta copie…</p>`);
+  try {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    await script(LIBS.h2c); if (quoi === 'pdf') await script(LIBS.pdf);
+    // 1er montage pour que le téléphone charge polices et images, puis 2e montage avec les vraies tailles
+    construireCopie(doc);
+    await attendreChargement($('#copie'));
+    const pages = construireCopie(doc);
+    await attendreChargement($('#copie'));
+    const nom = slug(doc.title) + '-ma-copie';
+    const toiles = [];
+    for (const pg of pages) toiles.push(await window.html2canvas(pg, {scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false}));
+    let fichiers;
+    if (quoi === 'pdf'){
+      const pdf = new window.jspdf.jsPDF({unit: 'mm', format: 'a4'});
+      toiles.forEach((cv, i) => { if (i) pdf.addPage(); pdf.addImage(cv.toDataURL('image/jpeg', .9), 'JPEG', 0, 0, 210, 297); });
+      fichiers = [new File([pdf.output('blob')], nom + '.pdf', {type: 'application/pdf'})];
+    } else {
+      fichiers = [];
+      for (let i = 0; i < toiles.length; i++) fichiers.push(new File([await enBlob(toiles[i], 'image/jpeg', .92)], nom + (toiles.length > 1 ? '-page-' + (i + 1) : '') + '.jpg', {type: 'image/jpeg'}));
+    }
+    const partage = navigator.canShare && navigator.canShare({files: fichiers});
+    const aide = quoi === 'pdf'
+      ? (partage ? 'Touche « Enregistrer » puis choisis <b>Enregistrer dans Fichiers</b>, ou envoie-le directement.' : 'Touche « Télécharger » : le PDF va dans tes téléchargements.')
+      : (partage ? 'Touche « Enregistrer » puis choisis <b>Enregistrer ' + (fichiers.length > 1 ? 'les images' : 'l’image') + '</b> : ' + (fichiers.length > 1 ? 'elles vont' : 'elle va') + ' dans ta galerie Photos. Tu pourras ensuite ' + (fichiers.length > 1 ? 'les' : 'la') + ' joindre à ton message Pronote.' : 'Touche « Télécharger » pour garder ' + (fichiers.length > 1 ? 'les images' : 'l’image') + '.');
+    f.querySelector('.boite').innerHTML = `<h2 style="margin-top:0">${quoi === 'pdf' ? '📄 Ton PDF est prêt' : '🖼 Ta copie est prête'}</h2>
+      <p>${aide}</p><p class="hint">${toiles.length} page${toiles.length > 1 ? "s" : ""}.</p>
+      <div class="rang"><button class="btn pri" data-ok>${partage ? 'Enregistrer' : 'Télécharger'}</button><button class="btn" data-fermer>Fermer</button></div>`;
+    f.querySelector('[data-ok]').onclick = async () => {
+      if (partage){ try { await navigator.share({files: fichiers, title: doc.title}); f.remove(); return; } catch(e){ if (e && e.name === 'AbortError') return; } }
+      fichiers.forEach((fi, i) => setTimeout(() => { const u = URL.createObjectURL(fi), a = document.createElement('a'); a.href = u; a.download = fi.name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000); }, i * 400));
+      f.remove();
+    };
+  } catch(e){
+    f.querySelector('.boite').innerHTML = `<p>La copie n’a pas pu être préparée (vérifie la connexion internet). Tu peux utiliser <b>Imprimer</b> à la place.</p><div class="rang"><button class="btn" data-fermer>Fermer</button></div>`;
+  }
 }
 
 /* départ */
