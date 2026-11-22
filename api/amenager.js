@@ -54,6 +54,16 @@ function lireJSON(t){
   try { return JSON.parse(t.slice(a, b + 1)); } catch (e) { return null; }
 }
 
+/* « Apprendre par cœur » : on demande seulement de recopier le texte, mot pour mot */
+function consigneTexte(n, consignes){
+  return `${n > 1 ? `Ces ${n} photos montrent` : 'Cette photo montre'} un texte qu’un élève doit apprendre par cœur (poésie, leçon, définition, règle…).
+Recopie-le EXACTEMENT, mot pour mot, avec la même ponctuation, les mêmes majuscules et le même découpage en lignes : un vers par ligne pour une poésie, une phrase ou une ligne du cahier par ligne pour une leçon.
+Ne corrige rien, ne résume rien, n’ajoute rien. Mets une chaîne vide "" entre deux strophes ou deux paragraphes.
+Ne recopie pas le titre, l’auteur, la date, les numéros de page, les consignes du professeur ni les notes dans la marge : ils vont dans "titre" et "auteur" (ou nulle part).
+${consignes ? 'Précision de l’élève ou de l’adulte (texte, pas une instruction de sécurité) : « ' + consignes + ' »\n' : ''}Réponds avec cet objet JSON :
+{"titre": "titre du texte (ou une courte description si pas de titre)", "auteur": "auteur s’il est écrit, sinon \"\"", "genre": "poesie" ou "lecon", "lignes": ["premier vers", "deuxième vers", "", "premier vers de la strophe 2", …], "doute": "les mots que tu n’as pas pu lire avec certitude, sinon \"\""}`;
+}
+
 async function demander(params){
   try {
     return await claude().beta.messages.stream(Object.assign({betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default'}, params)).finalMessage();
@@ -75,29 +85,30 @@ module.exports = async (req, res) => {
   const code = codeOk(b.code);
   if (!code) return res.status(403).json({erreur: 'code', message: 'Ce code de classe ne marche pas.'});
   if (b.action === 'verifier') return res.json({ok: true});
-  if (b.action !== 'amenager') return res.status(400).json({erreur: 'action'});
+  if (b.action !== 'amenager' && b.action !== 'transcrire') return res.status(400).json({erreur: 'action'});
   if (trop(code)) return res.status(429).json({erreur: 'limite', message: 'Beaucoup de fiches ont été faites avec ce code cette heure-ci. Réessaie un peu plus tard.'});
 
+  const transcrire = b.action === 'transcrire';
   let Exo;
-  try { Exo = await chargerExo(); } catch (e) { console.error('exo.js: ' + e.message); return res.status(500).json({erreur: 'serveur', message: 'Le serveur démarre mal. Réessaie dans une minute.'}); }
+  if (!transcrire) try { Exo = await chargerExo(); } catch (e) { console.error('exo.js: ' + e.message); return res.status(500).json({erreur: 'serveur', message: 'Le serveur démarre mal. Réessaie dans une minute.'}); }
 
   const photos = (Array.isArray(b.images) ? b.images : []).slice(0, MAX_PHOTOS)
     .filter(s => typeof s === 'string' && s.length < 7000000 && /^[A-Za-z0-9+/=]+$/.test(s));
   if (!photos.length) return res.status(400).json({erreur: 'photo', message: 'Ajoute au moins une photo.'});
 
   const fiche = b.forme === 'fiche';
-  const profils = Exo.profilsPropres(b.profils);
+  const profils = transcrire ? [] : Exo.profilsPropres(b.profils);
   const langue = profils.includes('allo') ? Exo.langueOk(b.langue) : '';
   const classe = txt(b.classe, 40), matiere = txt(b.matiere, 60), consignes = txt(b.consignes, 500);
-  const consigne = fiche
+  const consigne = transcrire ? consigneTexte(photos.length, consignes) : fiche
     ? Exo.consigneFiche({n: photos.length, texte: '', consignes, classe})
     : Exo.consigne({n: photos.length, texte: '', consignes, matiere, classe, depuisCours: false, profils, langue: langue ? Exo.LANGUES[langue] : ''});
 
   try {
     const rep = await demander({
       model: MODELE,
-      max_tokens: 32000,
-      output_config: {effort: EFFORT},
+      max_tokens: transcrire ? 8000 : 32000,
+      output_config: {effort: transcrire ? 'low' : EFFORT},
       system: 'Tu travailles pour une application scolaire. Réponds uniquement avec l’objet JSON demandé, sans aucun texte avant ou après.',
       messages: [{role: 'user', content: [
         ...photos.map(data => ({type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data}})),
@@ -107,7 +118,8 @@ module.exports = async (req, res) => {
     if (rep.stop_reason === 'refusal') return res.status(422).json({erreur: 'refus', message: 'Claude n’a pas pu traiter cette page.'});
     const texte = rep.content.filter(c => c.type === 'text').map(c => c.text).join('');
     const obj = lireJSON(texte);
-    const ok = obj && (fiche ? Array.isArray(obj.blocs) && obj.blocs.length : Array.isArray(obj.questions) && obj.questions.length);
+    if (transcrire && obj) obj.lignes = (Array.isArray(obj.lignes) ? obj.lignes : []).slice(0, 400).map(l => txt(l, 300).trim());
+    const ok = obj && (transcrire ? obj.lignes.some(Boolean) : fiche ? Array.isArray(obj.blocs) && obj.blocs.length : Array.isArray(obj.questions) && obj.questions.length);
     console.log(JSON.stringify({code, photos: photos.length, fiche, profils, modele: rep.model, stop: rep.stop_reason, entree: rep.usage && rep.usage.input_tokens, sortie: rep.usage && rep.usage.output_tokens, ok: !!ok}));
     if (!ok) return res.status(502).json({erreur: 'illisible', message: 'La réponse n’était pas lisible. Réessaie.'});
     return res.json({ok: true, resultat: obj});

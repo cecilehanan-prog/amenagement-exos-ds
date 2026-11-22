@@ -70,7 +70,7 @@ function ecranCode(erreur){
   const go = async () => {
     const c = $('#code').value.trim().toUpperCase(); if (!c){ setMsg('Écris le code de la classe.', true); return; }
     $('#entrer').disabled = true; setMsg('Je vérifie…');
-    try { await appeler({action: 'verifier', code: c}); st.code = c; lsSet('am-code', c); ecranPrep(); }
+    try { await appeler({action: 'verifier', code: c}); st.code = c; lsSet('am-code', c); ecranAccueil(); }
     catch(e){ $('#entrer').disabled = false; setMsg(e.message, true); }
   };
   $('#entrer').onclick = go;
@@ -78,11 +78,34 @@ function ecranCode(erreur){
   const rp = $('#reprendre'); if (rp) rp.onclick = () => { const d = dernier(); if (d) ecranJeu(d.doc, d.reserves); };
 }
 
-/* ---------- écran 2 : photo + pour qui ---------- */
+/* ---------- écran 2 : accueil, deux choix ---------- */
+function ecranAccueil(){
+  window.Apprendre && Apprendre.quitter();
+  app.innerHTML = `<div class="ecran">
+    <div class="logo" aria-hidden="true">🎒</div>
+    <h1 style="text-align:center">Que veux-tu faire ?</h1>
+    <div class="choix-accueil">
+      <button class="grand-choix" id="vers-amenager"><span class="gc-ico" aria-hidden="true">✋</span><b>Aménager ma fiche</b><small>Prends en photo ta fiche d’exercices : elle devient un exercice à faire au toucher.</small></button>
+      <button class="grand-choix" id="vers-apprendre"><span class="gc-ico" aria-hidden="true">📜</span><b>Apprendre par cœur</b><small>Une poésie, une leçon, une règle… : tu l’écoutes, puis tu la récites avec de l’aide, puis tout seul.</small></button>
+    </div>
+    ${dernier() ? `<button class="discret" id="reprendre">Reprendre mon dernier exercice</button>` : ''}
+    <button class="discret" id="sortir">Changer de code de classe</button>
+  </div>`;
+  window.scrollTo(0, 0);
+  $('#vers-amenager').onclick = () => ecranPrep();
+  $('#vers-apprendre').onclick = () => Apprendre.ecran();
+  const rp = $('#reprendre'); if (rp) rp.onclick = () => { const d = dernier(); if (d) ecranJeu(d.doc, d.reserves); };
+  $('#sortir').onclick = () => { st.code = ''; lsSet('am-code', null); ecranCode(); };
+}
+const boutonAccueil = () => `<button class="vers-accueil" id="vers-accueil">◀ Accueil</button>`;
+const brancherAccueil = () => { const b = $('#vers-accueil'); if (b) b.onclick = ecranAccueil; };
+
+/* ---------- écran 3 : photo + pour qui ---------- */
 function ecranPrep(msg){
   Exo.cssProfs();
   const vign = st.photos.map((p, i) => `<div class="ph"><img src="${p.url}" alt="Photo ${i + 1}"><button data-del="${i}" aria-label="Retirer la photo ${i + 1}">✕</button></div>`).join('');
   app.innerHTML = `<div class="ecran">
+    ${boutonAccueil()}
     <h1>✋ Aménager ma fiche</h1>
     <p class="hint">Une photo par page, bien à plat, avec de la lumière. Pas de nom d’élève sur la photo.</p>
     <div class="rang">
@@ -118,8 +141,8 @@ function ecranPrep(msg){
 
     <button class="btn pri large" id="go" style="margin-top:20px">✨ Préparer mon exercice</button>
     <div id="msg" class="msg" role="status"></div>
-    <button class="discret" id="sortir">Changer de code de classe</button>
   </div>`;
+  brancherAccueil();
   if (msg) setMsg(msg, true);
   const ajouter = async files => {
     for (const f of files){
@@ -139,7 +162,6 @@ function ecranPrep(msg){
   const lg = $('#langue'); if (lg) lg.onchange = () => { st.langue = Exo.langueOk(lg.value); garder(); };
   $('#classe').onchange = () => { st.classe = $('#classe').value; garder(); };
   $('#go').onclick = preparer;
-  $('#sortir').onclick = () => { st.code = ''; lsSet('am-code', null); ecranCode(); };
 }
 function lireChamps(){ const m = $('#matiere'), c = $('#consignes'); if (m) st.matiere = m.value.trim(); if (c) st.consignes = c.value.trim(); }
 
@@ -228,7 +250,7 @@ function ecranJeu(doc, reserves){
     if (racine.querySelector('[data-a="suiv"],[data-a="finir"],[data-a="prec"],.xq-fin:not(.xq-pause)')){ const b = $('.retour'); if (b) b.remove(); }
     const nav = racine.querySelector('.xq-fin:not(.xq-pause) .xq-nav'); if (!nav || nav.querySelector('[data-am]')) return;
     nav.insertAdjacentHTML('beforeend', '<button class="xq-btn" data-am="pdf">📄 Mon PDF</button><button class="xq-btn" data-am="photo">🖼 Ma copie en photo</button><button class="xq-btn" data-am="accueil">🏠 Accueil</button>');
-    nav.querySelector('[data-am="accueil"]').onclick = () => $('#nouveau').onclick();
+    nav.querySelector('[data-am="accueil"]').onclick = () => { oublierPhotos(); ecranAccueil(); };
     nav.querySelector('[data-am="pdf"]').onclick = () => copie(doc, 'pdf');
     nav.querySelector('[data-am="photo"]').onclick = () => copie(doc, 'photo'); };
   new MutationObserver(finBoutons).observe(racine, {childList: true, subtree: true}); finBoutons();
@@ -310,5 +332,7 @@ async function copie(doc, quoi){
 }
 
 /* départ */
-if (st.code) ecranPrep(); else ecranCode();
+const codePerdu = () => { st.code = ''; lsSet('am-code', null); ecranCode('Ce code de classe ne marche plus. Demande le nouveau code.'); };
+Apprendre.init({app, st, esc, appeler, versJpeg, enBase64, setMsg, fenetre, boutonAccueil, brancherAccueil, accueil: ecranAccueil, codePerdu});
+if (st.code) ecranAccueil(); else ecranCode();
 })();
