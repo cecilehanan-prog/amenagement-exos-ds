@@ -79,6 +79,7 @@ function nettoyerQ(q){
   if (q.simple) o.simple = S(q.simple).slice(0, 800);
   const et = L(q.etapes, 5).filter(Boolean); if (et.length) o.etapes = et;
   if (q.defi) o.defi = true;
+  if (q.quatreC) o.quatreC = true;   // problème de maths / physique-chimie : rappel des 4C sous l'énoncé
   if (q.trad) o.trad = S(q.trad).slice(0, 1500);
   if (t === 'qcm' && Array.isArray(q.traces)) o.traces = o.choix.map((c, k) => objetsGeo(q.traces[k]));   // géométrie : ce que chaque choix dessine
   if (t === 'figure'){ o.points = {}; const P = q.points && typeof q.points === 'object' ? q.points : {};
@@ -145,6 +146,20 @@ function depuisIA(r, base){
 }
 
 /* ---------- consigne pour Claude ---------- */
+/* Méthode des 4C (maths, physique-chimie, géométrie), demandée par l'enseignante : toute rédaction de problème la suit */
+const REGLE_4C = `MÉTHODE DES 4C (mathématiques, physique-chimie, géométrie : toute question où l'élève résout un problème ou justifie un résultat par un calcul ou un théorème — « Combien… ? », « Calcule la longueur… », Pythagore, Thalès, conversions, vitesse, proportionnalité…). La classe rédige TOUJOURS ainsi, et chaque rédaction modèle que tu proposes doit suivre ces 4 étapes, dans cet ordre, avec ces mots :
+- « Je cherche : » rappel de l'énoncé à sa façon (les données utiles) puis ce qu'on cherche, avec une lettre (ex. « Je cherche : le nombre d'habitants en Inde : n = ? »).
+- « Je cite : » la « formule magique » qui annonce l'outil avec le vocabulaire juste (ex. « Je vais effectuer une différence. », « Le triangle ABC est rectangle en A, j'utilise le théorème de Pythagore. », « J'utilise le théorème de Thalès. », « J'utilise la formule v = d ÷ t. »).
+- « Je calcule : » le calcul posé, étape par étape, jusqu'au résultat (ex. « n = 1 395 203 400 − 39 581 600 » puis « n = 1 355 621 800 »).
+- « Je conclus : » une phrase qui répond à la question, avec l'UNITÉ (ex. « Il y a 1 355 621 800 habitants en Inde. », « BC mesure 5 cm. »).
+Exemple complet (6e) : « En 2018, la Chine comptait 1 395 203 400 habitants. C'est 39 581 600 de plus qu'en Inde. Combien y a-t-il d'habitants en Inde ? » → Je cherche : le nombre d'habitants en Inde : n = ? / Je cite : Je vais effectuer une différence. / Je calcule : n = 1 395 203 400 − 39 581 600 ; n = 1 355 621 800 / Je conclus : Il y a 1 355 621 800 habitants en Inde.`;
+const MEMO_4C = '<b>Les 4C</b> : je cherche, je cite, je calcule, je conclus.';
+const MEMO_4C_HTML = `<div class="memo4c"><p><b>📐 La méthode des 4C</b> (mathématiques, physique-chimie, géométrie) : pour rédiger la réponse à un problème.</p>
+<ol><li><b>Je cherche :</b> je redis l'énoncé à ma façon (les données), puis ce que je cherche, avec une lettre : « n = ? ».</li>
+<li><b>Je cite :</b> la formule magique qui annonce ce que je vais faire : « Je vais effectuer une différence », « J'utilise le théorème de Pythagore »…</li>
+<li><b>Je calcule :</b> je pose le calcul et je le fais jusqu'au bout.</li>
+<li><b>Je conclus :</b> une phrase qui répond à la question, avec l'unité.</li></ol>
+<p class="memo4c-ex"><i>Exemple (6e) : la Chine compte 1 395 203 400 habitants, c'est 39 581 600 de plus qu'en Inde. Combien d'habitants en Inde ?</i><br><b>Je cherche :</b> le nombre d'habitants en Inde : n = ?<br><b>Je cite :</b> je vais effectuer une différence.<br><b>Je calcule :</b> n = 1 395 203 400 − 39 581 600 ; n = 1 355 621 800<br><b>Je conclus :</b> il y a 1 355 621 800 habitants en Inde.</p></div>`;
 function consigne(g){
   return `Tu aides une enseignante${g.classe ? ' (classe de ' + g.classe + ')' : ''}. Un de ses élèves ne peut plus écrire à la main : il répond seulement au toucher ou au clavier, d'une seule main (la gauche). Sans aide, il ne peut pas faire les exercices papier.
 ${g.n ? `Les ${g.n} image(s) jointe(s) sont des photos d'une page d'exercices${g.matiere ? ' de ' + g.matiere : ''} (manuel, fiche photocopiée…), dans l'ordre.` : ''}
@@ -187,6 +202,8 @@ FIGURES, TRACÉS ET SCHÉMAS DE LA PAGE (obligatoire, toutes matières) :
 OPÉRATION POSÉE (l'élève remplit les chiffres case par case, en touchant) :
 - {"type":"pose","enonce":"…","op":"+","nombres":["347","85"],"resultat":"432"} ; "op" parmi "+", "−", "×" ; "nombres" = les nombres à poser, dans l'ordre de la page ; "resultat" = le résultat juste, en chiffres.
 - Nombres décimaux seulement pour + et − : écris-les tous avec le même nombre de chiffres après la virgule (ex. "12,50" et "3,75", résultat "16,25"). Une multiplication posée de décimaux ou une division posée → CALCUL DÉVELOPPÉ À CHOISIR.
+${REGLE_4C}
+Dans un exercice adapté : mets "quatreC": true sur chaque question de ce genre (un rappel « Les 4C » s'affiche alors sous l'énoncé). En CALCUL DÉVELOPPÉ À CHOISIR, chacun des 4 choix est une rédaction complète en 4C, une étape par ligne : « Je cherche : … », « Je cite : … », « Je calcule : … » (une ligne par étape du calcul), « Je conclus : … » ; une erreur des 3 faux choix peut aussi être une mauvaise formule magique (« somme » au lieu de « différence », mauvais théorème) ou une conclusion sans unité ou avec la mauvaise unité. Ses "etapes" sont les 4C, sans la réponse (ex. ["Je cherche : ce qu'on demande", "Je cite : l'opération ou le théorème", "Je calcule", "Je conclus avec l'unité"]). Un "long" de ce genre attend une rédaction en 4C.
 Aides préparées d'avance (l'enseignante choisira d'un bouton pour quel élève elles s'affichent ; prépare-les TOUJOURS) :
 - "simple" sur chaque question : une aide en plus que tout élève peut ouvrir (Dys, TDA-H, HPI ou non), affichée SOUS l'énoncé exact (elle ne le remplace jamais : "enonce" reste mot pour mot). La consigne redite plus simplement, au sens propre : sans expression imagée, sans sous-entendu, tout ce qu'il faut faire est dit (utile aussi aux élèves TSA). Phrases courtes, mots courants, le verbe d'action en premier, le même numéro au début. Exactement la même demande : ne donne ni la réponse, ni la méthode, ni d'indice en plus. Découpe avec | les mots longs ou difficiles en syllabes (ex. « ad|di|tion », « pho|to|syn|thè|se »).
 - "etapes" sur chaque question : 2 à 4 étapes très courtes, dans l'ordre, pour un élève TDA-H qui se perd dans une consigne longue ou un élève TSA qui a besoin de savoir exactement quoi faire (sens propre, sans sous-entendu) (ex. ["Regarde le DOC. 3", "Cherche le mot qui manque", "Touche ta réponse"]). Pas la réponse.
@@ -472,6 +489,7 @@ function lecteur(root, exo, reps, save, opts){
     if (exo.consigne && idx === 0) h += '<p class="xq-consigne">' + md(exo.consigne) + '</p>' + (allo && exo.consigne_trad && voirTrad ? '<p class="xq-trad" lang="' + exo.langue + '" dir="' + (RTL.indexOf(exo.langue) >= 0 ? 'rtl' : 'auto') + '">' + esc(exo.consigne_trad) + '</p>' : '');
     if (liste) h += '<div class="xq-qtete"><span class="xq-num">Question ' + (idx + 1) + '</span><button class="xq-son" data-a="son" aria-label="Lire la question ' + (idx + 1) + ' à voix haute">🔊</button></div>';
     h += '<h2 class="xq-enonce">' + (q.defi ? '<span class="xq-defi">★</span> ' : '') + md(enonceDe(q)) + '</h2>';
+    if (q.quatreC) h += '<p class="xq-4c">📐 ' + MEMO_4C + '</p>';
     if (q.illus) h += '<figure class="xq-illus"><img src="' + esc(q.illus) + '" alt="' + esc(q.illusLegende || 'La figure de la question') + '">' + (q.illusLegende ? '<figcaption>' + esc(q.illusLegende) + '</figcaption>' : '') + '</figure>';
     if (allo && q.trad) h += voirTrad ? '<div class="xq-trad" lang="' + exo.langue + '" dir="' + (RTL.indexOf(exo.langue) >= 0 ? 'rtl' : 'auto') + '"><span>' + esc(q.trad) + '</span><button class="xq-son" data-a="sontrad" aria-label="Écouter dans ma langue">🔊</button></div><button class="xq-petit" data-a="trad">✕ Cacher ma langue</button>' : '<button class="xq-petit" data-a="trad">🌍 Dans ma langue</button>';
     if (q.simple) h += '<button class="xq-petit xq-livre" data-a="aide" aria-expanded="' + aide + '">' + (aide ? '✕ Cacher l\u2019aide' : '💡 Dit plus simplement') + '</button>' + (aide ? '<p class="xq-simple">' + md(q.simple) + '</p>' : '');
@@ -676,6 +694,7 @@ const CSS_LECTEUR = `
 .xq-vue img{display:block;width:100%;max-width:1100px;margin:0 auto 12px;background:#fff}
 .xq-son,.xq-petit{font:inherit;font-size:16px;border:2px solid #5b4fc4;background:#fff;color:#3b2fa0;border-radius:12px;padding:8px 12px;cursor:pointer}
 .xq-points{display:flex;gap:5px;flex-wrap:wrap;margin:10px 0 4px}.xq-points span{width:12px;height:12px;border-radius:50%;background:#d9d6ea}.xq-points .fait{background:#8ab89a}.xq-points .on{outline:3px solid #5b4fc4;outline-offset:1px}
+.xq-4c{display:inline-block;background:#eef4ff;border:2px solid #9db8e8;border-radius:12px;padding:6px 12px;margin:0 0 12px;font-size:.85em;color:#1e3a6e}
 .xq-consigne{background:#fff7d6;border-radius:12px;padding:8px 12px;margin:10px 0}
 .xq-enonce,.xq h2{font-family:inherit;font-weight:700;text-transform:none;letter-spacing:0;color:#1a1a1a}
 .xq-enonce{font-size:24px;line-height:1.35;margin:14px 0 10px}
@@ -830,7 +849,7 @@ function nettoyerB(b){
   if (t === 'titre'){ o.texte = S(b.texte).slice(0, 300); o.niveau = b.niveau === 2 ? 2 : 1; }
   else if (t === 'texte'){ o.texte = S(b.texte).slice(0, 3000); if (b.petit) o.petit = true; }
   else if (t === 'encadre'){ o.titre = S(b.titre).slice(0, 120); o.texte = S(b.texte).slice(0, 2000); }
-  else if (t === 'champ'){ o.label = S(b.label).slice(0, 600); o.lignes = Math.max(1, Math.min(6, Math.round(+b.lignes) || 1)); if (b.nom) o.nom = true; }
+  else if (t === 'champ'){ o.label = S(b.label).slice(0, 600); o.lignes = Math.max(1, Math.min(6, Math.round(+b.lignes) || 1)); if (b.nom) o.nom = true; if (b.quatreC) o.quatreC = true; }
   else if (t === 'cases'){ o.label = S(b.label).slice(0, 600); o.choix = (Array.isArray(b.choix) ? b.choix : []).slice(0, 12).map(x => S(x).slice(0, 300)); o.plusieurs = b.plusieurs !== false; }
   else if (t === 'tableau'){ o.lignes = (Array.isArray(b.lignes) ? b.lignes : []).slice(0, 16).map(l => (Array.isArray(l) ? l : []).slice(0, 6).map(c => S(c).slice(0, 200))); o.entete = b.entete !== false; }
   else if (t === 'dessin'){ o.label = S(b.label).slice(0, 300); }
@@ -861,6 +880,7 @@ RECOPIE LA FICHE TELLE QUELLE (le plus important) :
   • nom, prénom, classe de l'élève → "champ" avec "nom": true (jamais enregistré).
 - Chaque figure géométrique, tracé, schéma, graphique, carte ou image imprimée sur la fiche est REPRISE à sa place, jamais supprimée : bloc "figure" avec "page" (numéro de la photo à partir de 0), "zone" [gauche, haut, largeur, hauteur] en % de la photo, cadrée large autour de toute la figure avec ses lettres, ses codages et ses mesures, et "legende" = son titre imprimé s'il y en a un, mot pour mot.
 - Les parties numérotées (« 1. La carte d'identité du poème ») deviennent des "titre".
+- Mathématiques, physique-chimie, géométrie : là où l'élève rédige la réponse à un problème, le "champ" garde son intitulé imprimé et ajoute "quatreC": true (la classe rédige avec les 4C : je cherche, je cite, je calcule, je conclus).
 Réponds uniquement avec un objet JSON :
 {"reserves":"ce qui est illisible ou à vérifier, ou chaîne vide","titre":"le titre de la fiche, mot pour mot","blocs":[ … ]}
 Formes des blocs :
@@ -904,7 +924,7 @@ function ficheActive(root, exo, reps, save, opts){
       else if (b.t === 'separateur') h += '<hr class="xf-hr">';
       else if (b.t === 'figure'){ if (b.img) h += '<figure class="xq-illus"><img src="' + esc(b.img) + '" alt="' + esc(b.legende || 'La figure de la fiche') + '">' + (b.legende ? '<figcaption>' + md(b.legende) + '</figcaption>' : '') + '</figure>'; }
       else if (b.t === 'champ'){ var v = b.nom ? (noms[b.id] || '') : (reps[b.id] || '');
-        h += '<label class="xf-ch"><span class="xf-lab">' + md(b.label) + '</span>' + (b.lignes > 1 ? '<textarea class="xf-in" data-ch="' + b.id + '" rows="' + b.lignes + '">' + esc(v) + '</textarea>' : '<input class="xf-in" data-ch="' + b.id + '" value="' + esc(v) + '" autocomplete="off">') + (b.nom ? '<small>Seulement pour le PDF : ce n’est pas enregistré.</small>' : '') + '</label>'; }
+        h += '<label class="xf-ch"><span class="xf-lab">' + md(b.label) + '</span>' + (b.quatreC ? '<span class="xq-4c">📐 ' + MEMO_4C + '</span>' : '') + (b.lignes > 1 ? '<textarea class="xf-in" data-ch="' + b.id + '" rows="' + b.lignes + '">' + esc(v) + '</textarea>' : '<input class="xf-in" data-ch="' + b.id + '" value="' + esc(v) + '" autocomplete="off">') + (b.nom ? '<small>Seulement pour le PDF : ce n’est pas enregistré.</small>' : '') + '</label>'; }
       else if (b.t === 'cases'){ var r = reps[b.id] || [];
         h += '<div class="xf-cases" role="group" aria-label="' + esc(b.label) + '">' + (b.label ? '<p class="xf-lab">' + md(b.label) + '</p>' : '') + '<div class="xf-grille' + ((b.choix || []).some(function(c){ return c.length > 40; }) ? ' long' : '') + '">' + (b.choix || []).map(function(c, k){ var on = r.indexOf(k) >= 0; return '<button type="button" class="xf-case' + (on ? ' on' : '') + '" data-ca="' + b.id + '" data-k="' + k + '" role="' + (b.plusieurs ? 'checkbox' : 'radio') + '" aria-checked="' + on + '"><span class="xf-box">' + (on ? '✔' : '') + '</span><span>' + md(c) + '</span></button>'; }).join('') + '</div></div>'; }
       else if (b.t === 'tableau'){ h += '<div class="xf-tabw"><table class="xf-tab">' + (b.lignes || []).map(function(l, a){ return '<tr>' + l.map(function(c, j){ var th = b.entete && a === 0; return (th ? '<th>' : '<td>') + blancs(c, b.id, a + ',' + j + ',') + (th ? '</th>' : '</td>'); }).join('') + '</tr>'; }).join('') + '</table></div>'; }
@@ -1321,5 +1341,5 @@ const AIDE_CORRECTION = `Fiche telle quelle ("kind":"exo","forme":"fiche") : "bl
 Exercice adapté ("kind":"exo") : "consigne" (phrase pour l'élève) ; "questions" (liste) de types qcm {choix, bonnes (indices à partir de 0), plusieurs}, vraifaux {affirmations:[{texte, vrai}]}, relier {gauche, droite, paires:[[g,d]]}, trous {texte avec [mots], intrus}, ordre {elements dans le bon ordre}, classer {categories, elements:[{texte, cat}]}, court {reponses acceptées}, calcul {reponse, unite}, pose {op:"+"|"−"|"×", nombres:["347","85"], resultat:"432"} (opération posée case par case), figure {points:{"A":[x,y]} en cm, base:[objets]} (la figure construite avec les réponses ; les qcm de construction ont "traces" : pour chaque choix, les objets dessinés : segment/droite/demi {de,a}, cercle {centre, par|rayon}, point {p}, angledroit {sommet,de,a}, codage {de,a,n}) ; notations [AB] segment, [AB) demi-droite, (AB) droite, jamais confondues, long, tableau {lignes : cases à compléter entre [crochets], intrus, banque "tout"|"colonne"|"aucune"}, souligner {texte avec [mots] ou [mots#2] pour la 2e couleur, categories:[{nom, couleur}]}, frise {debut, fin, pas, precision, evenements:[{texte, date}]}, legender {page ou image, zone [x,y,l,h] en %, points [{x,y}] en % de la photo, etiquettes dans l'ordre des numéros, intrus} ; pour un calcul, de préférence qcm {"deroule":true, 4 choix = calculs complets ligne par ligne (\\n), un seul juste, "reponse"} ; chaque question a "enonce" (mot pour mot de la page), "simple" (consigne reformulée pour Dys, syl|la|bes), "etapes" (2 à 4 étapes pour TDA-H), et "defi":true pour les questions défi HPI ; "trad" (énoncé traduit, profil allophone), "consigne_trad", "langue" (code) ; "profils" (liste parmi "dys","tdah","tsa","hpi","dyscal","malvoy","allo") ; "adapt" {main:"gauche"|"droite", correction:true|false}. Ne touche pas à "reponses".
 Figures (tracés géométriques, schémas, graphiques) : une question peut avoir "illus" (la figure montrée sous l'énoncé) et "illus_legende" ; un bloc de fiche {"t":"figure",img,legende}. Une figure existante vaut "IMAGE" : laisse "IMAGE" tel quel pour la garder. Les images jointes à cette demande sont, dans l'ordre, ces figures existantes (voir "figures_jointes"). Pour AJOUTER ou REFAIRE une figure, écris sur la question "illus_dessin":"<svg viewBox=\"0 0 600 400\" xmlns=\"http://www.w3.org/2000/svg\">…</svg>" (ou dans une fiche {"t":"figure","dessin":"<svg …>","legende":"…"}) : fond blanc, traits noirs de 3 px, points marqués d'une croix et nommés en capitales de 26 px, codages (angle droit, longueurs égales), mesures écrites comme sur la page, notations exactes ; fidèle à la figure d'origine, rien d'inventé. Pour retirer une figure : "illus":"" .`;
 
-window.Exo = {CSS_LECTEUR: CSS_LECTEUR + CSS_FICHE, TYPES, themeDe, consigneFiche, depuisIAFiche, ficheActive, jouer, decouper, NOMS, PROFILS_EXO, LANGUES, choixLangue, langueOk, boutonsProfils, cssProfs, profilsPropres, prep, nouveau, depuisIA, consigne, construire: (d, p, o, h) => { cssCopie(); return d.forme === 'fiche' ? construireFiche(d, p, o, h) : construire(d, p, o, h); }, editeur, surEvenement, modeEleve, exporter, lecteur, AIDE_CORRECTION};
+window.Exo = {CSS_LECTEUR: CSS_LECTEUR + CSS_FICHE, TYPES, themeDe, consigneFiche, depuisIAFiche, ficheActive, jouer, decouper, NOMS, PROFILS_EXO, REGLE_4C, MEMO_4C, MEMO_4C_HTML, LANGUES, choixLangue, langueOk, boutonsProfils, cssProfs, profilsPropres, prep, nouveau, depuisIA, consigne, construire: (d, p, o, h) => { cssCopie(); return d.forme === 'fiche' ? construireFiche(d, p, o, h) : construire(d, p, o, h); }, editeur, surEvenement, modeEleve, exporter, lecteur, AIDE_CORRECTION};
 })();
