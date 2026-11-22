@@ -129,7 +129,7 @@ function oublierPhotos(){ A.photos.forEach(p => URL.revokeObjectURL(p.url)); A.p
 async function recopier(){
   if (!A.photos.length){ C.setMsg('Prends d’abord une photo du texte.', true); return; }
   const ctl = new AbortController();
-  C.app.innerHTML = `<div class="ecran attente"><div class="rond" aria-hidden="true"></div><h1>Claude recopie ton texte…</h1><p class="hint">Souvent moins d’une minute. Garde l’appli ouverte.</p><button class="btn" id="stop" style="margin-top:20px">Arrêter</button></div>`;
+  C.app.innerHTML = `<div class="ecran attente"><div class="rond" aria-hidden="true"></div><h1>Je recopie ton texte…</h1><p class="hint">Souvent moins d’une minute. Garde l’appli ouverte.</p><button class="btn" id="stop" style="margin-top:20px">Arrêter</button></div>`;
   $('#stop').onclick = () => ctl.abort();
   try {
     let images = await Promise.all(A.photos.map(p => C.enBase64(p.blob)));

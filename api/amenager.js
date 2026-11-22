@@ -25,6 +25,17 @@ function chargerExo(){
   return exoP;
 }
 
+/* pictos.js (fichier de l'atelier) : la liste des pictogrammes :nom: permis dans les fiches et cartes */
+let pictosL = null;
+function listePictos(){
+  if (pictosL == null) try {
+    const f = [path.join(process.cwd(), 'pictos.js'), path.join(__dirname, '..', 'pictos.js')].find(x => fs.existsSync(x));
+    const bac = {window: {}}; vm.runInNewContext(fs.readFileSync(f, 'utf8'), bac); pictosL = bac.window.Pictos.LISTE;
+  } catch (e) { pictosL = ''; }
+  return pictosL;
+}
+const RevisionConsigne = require('../revision-consigne.js');
+
 const liste = v => String(v || '').split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
 const ORIGINES = liste(process.env.ORIGINES || 'https://cecilehanan-prog.github.io');
 const CODES = liste(process.env.CODES_CLASSE || process.env.CODE_CLASSE).map(s => s.toUpperCase());
@@ -85,6 +96,7 @@ module.exports = async (req, res) => {
   const code = codeOk(b.code);
   if (!code) return res.status(403).json({erreur: 'code', message: 'Ce code de classe ne marche pas.'});
   if (b.action === 'verifier') return res.json({ok: true});
+  if (b.action === 'reviser' || b.action === 'corriger'){ if (trop(code)) return res.status(429).json({erreur: 'limite', message: 'Beaucoup de fiches ont été faites avec ce code cette heure-ci. Réessaie un peu plus tard.'}); return reviser(b, code, res); }
   if (b.action !== 'amenager' && b.action !== 'transcrire') return res.status(400).json({erreur: 'action'});
   if (trop(code)) return res.status(429).json({erreur: 'limite', message: 'Beaucoup de fiches ont été faites avec ce code cette heure-ci. Réessaie un peu plus tard.'});
 
@@ -115,7 +127,7 @@ module.exports = async (req, res) => {
         {type: 'text', text: consigne}
       ]}]
     });
-    if (rep.stop_reason === 'refusal') return res.status(422).json({erreur: 'refus', message: 'Claude n’a pas pu traiter cette page.'});
+    if (rep.stop_reason === 'refusal') return res.status(422).json({erreur: 'refus', message: 'Je n’ai pas pu lire cette page. Essaie avec une autre photo.'});
     const texte = rep.content.filter(c => c.type === 'text').map(c => c.text).join('');
     const obj = lireJSON(texte);
     if (transcrire && obj) obj.lignes = (Array.isArray(obj.lignes) ? obj.lignes : []).slice(0, 400).map(l => txt(l, 300).trim());
@@ -126,10 +138,53 @@ module.exports = async (req, res) => {
   } catch (e) {
     const s = e && e.status;
     console.error(JSON.stringify({code, erreur: s || 'reseau', type: e && e.error && e.error.error && e.error.error.type}));
-    if (s === 429 || s === 529) return res.status(429).json({erreur: 'occupe', message: 'Claude est très demandé en ce moment. Réessaie dans une minute.'});
+    if (s === 429 || s === 529) return res.status(429).json({erreur: 'occupe', message: 'Je suis très demandé en ce moment. Réessaie dans une minute.'});
     if (/credit|billing|spend|limit/i.test(String(e && e.message))) return res.status(503).json({erreur: 'budget', message: 'Le budget du mois est atteint. Préviens l’enseignante.'});
     if (s === 400) return res.status(400).json({erreur: 'photo', message: 'Une photo n’a pas pu être lue. Reprends-la plus nette.'});
     if (s === 401 || s === 403) return res.status(500).json({erreur: 'cle', message: 'La clé du serveur ne marche pas. Préviens l’enseignante.'});
     return res.status(500).json({erreur: 'serveur', message: 'Ça n’a pas marché. Réessaie.'});
   }
 };
+
+/* « Ma fiche de révision » / « Ma carte mentale » : photo du cours → brouillon de l'Atelier ; ou correction demandée par l'élève */
+async function reviser(b, code, res){
+  const type = b.type === 'carte' ? 'carte' : 'fiche';
+  const version = RevisionConsigne.VERSIONS[b.version] ? b.version : 'std';
+  let consigne, photos = [];
+  if (b.action === 'corriger'){
+    const json = txt(b.doc, 120000), demande = txt(b.demande, 600).trim();
+    if (!json || !demande) return res.status(400).json({erreur: 'demande', message: 'Écris ce qu’il faut corriger.'});
+    consigne = RevisionConsigne.correction({type, json, demande, pictos: listePictos()});
+  } else {
+    let Exo = null; try { Exo = await chargerExo(); } catch (e) {}
+    photos = (Array.isArray(b.images) ? b.images : []).slice(0, MAX_PHOTOS).filter(s => typeof s === 'string' && s.length < 7000000 && /^[A-Za-z0-9+/=]+$/.test(s));
+    if (!photos.length) return res.status(400).json({erreur: 'photo', message: 'Ajoute au moins une photo.'});
+    consigne = RevisionConsigne.consigne({type, version, n: photos.length, classe: txt(b.classe, 40), matiere: txt(b.matiere, 60), consignes: txt(b.consignes, 500), pictos: listePictos(), regle4c: Exo && Exo.REGLE_4C});
+  }
+  try {
+    const rep = await demander({
+      model: MODELE,
+      max_tokens: 32000,
+      output_config: {effort: b.action === 'corriger' ? 'low' : EFFORT},
+      system: 'Tu travailles pour une application scolaire. Réponds uniquement avec l’objet JSON demandé, sans aucun texte avant ou après.',
+      messages: [{role: 'user', content: [
+        ...photos.map(data => ({type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data}})),
+        {type: 'text', text: consigne}
+      ]}]
+    });
+    if (rep.stop_reason === 'refusal') return res.status(422).json({erreur: 'refus', message: 'Je n’ai pas pu lire cette page. Essaie avec une autre photo.'});
+    const obj = lireJSON(rep.content.filter(c => c.type === 'text').map(c => c.text).join(''));
+    const ok = obj && (b.action === 'corriger' ? Array.isArray(obj.branches) : Array.isArray(obj.brouillons) && obj.brouillons.length);
+    console.log(JSON.stringify({code, action: b.action, type, version, photos: photos.length, modele: rep.model, stop: rep.stop_reason, entree: rep.usage && rep.usage.input_tokens, sortie: rep.usage && rep.usage.output_tokens, ok: !!ok}));
+    if (!ok) return res.status(502).json({erreur: 'illisible', message: 'La réponse n’était pas lisible. Réessaie.'});
+    return res.json({ok: true, resultat: obj});
+  } catch (e) {
+    const s = e && e.status;
+    console.error(JSON.stringify({code, erreur: s || 'reseau'}));
+    if (s === 429 || s === 529) return res.status(429).json({erreur: 'occupe', message: 'Je suis très demandé en ce moment. Réessaie dans une minute.'});
+    if (/credit|billing|spend|limit/i.test(String(e && e.message))) return res.status(503).json({erreur: 'budget', message: 'Le budget du mois est atteint. Préviens l’enseignante.'});
+    if (s === 400) return res.status(400).json({erreur: 'photo', message: 'Une photo n’a pas pu être lue. Reprends-la plus nette.'});
+    if (s === 401 || s === 403) return res.status(500).json({erreur: 'cle', message: 'La clé du serveur ne marche pas. Préviens l’enseignante.'});
+    return res.status(500).json({erreur: 'serveur', message: 'Ça n’a pas marché. Réessaie.'});
+  }
+}

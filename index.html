@@ -53,6 +53,7 @@ input[type=text]:focus,select:focus,textarea:focus{outline:3px solid #b9b0f0;bor
 #jeu{background:#fafaff;min-height:70vh}
 #jeu .xq{max-width:760px;margin:0 auto}
 .titre-exo{font:700 20px 'Lexend',system-ui,sans-serif;max-width:720px;margin:14px auto 0;padding:0 16px;color:#2a2550}
+.hint.ia{text-align:center;font-size:12.5px;margin-top:26px;line-height:1.4}
 .discret{display:block;margin:18px auto 0;background:none;border:0;color:var(--doux);font:inherit;font-size:14px;text-decoration:underline;cursor:pointer}
 /* accueil : deux grands choix */
 .choix-accueil{display:grid;gap:14px;margin-top:22px}
@@ -142,6 +143,7 @@ input[type=text]:focus,select:focus,textarea:focus{outline:3px solid #b9b0f0;bor
   #copie{position:static;left:auto;width:auto}
   #copie .stage{height:auto!important;gap:0}
   #copie .pg{box-shadow:none;page-break-after:always;break-after:page}
+  #copie.paysage .stage{height:1000px!important;zoom:.794;border-radius:0}
 }
 </style>
 </head>
@@ -150,6 +152,9 @@ input[type=text]:focus,select:focus,textarea:focus{outline:3px solid #b9b0f0;bor
 <div id="copie" aria-hidden="true"></div>
 <script src="config.js"></script>
 <script src="exo.js"></script>
+<script src="pictos.js"></script>
+<script src="maths.js"></script>
+<script src="revision.js"></script>
 <script src="apprendre.js"></script>
 <script src="app.js"></script>
 </body>

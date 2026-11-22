@@ -35,9 +35,10 @@ const st = {
   classe: lsGet('am-classe') || '',
   matiere: '', consignes: '',
   main: lsGet('am-main') === 'droite' ? 'droite' : 'gauche',
-  photos: [], busy: false, ctl: null
+  photos: [], busy: false, ctl: null,
+  revType: lsGet('am-rev-type') === 'carte' ? 'carte' : 'fiche'
 };
-const garder = () => { lsSet('am-forme', st.forme); lsSet('am-profils', JSON.stringify(st.profils)); lsSet('am-langue', st.langue); lsSet('am-classe', st.classe); lsSet('am-main', st.main); };
+const garder = () => { lsSet('am-rev-type', st.revType); lsSet('am-forme', st.forme); lsSet('am-profils', JSON.stringify(st.profils)); lsSet('am-langue', st.langue); lsSet('am-classe', st.classe); lsSet('am-main', st.main); };
 function setMsg(t, err){ const m = $('#msg'); if (m){ m.textContent = t || ''; m.classList.toggle('err', !!err); } }
 
 /* ---------- appel à la fonction ---------- */
@@ -86,14 +87,17 @@ function ecranAccueil(){
     <h1 style="text-align:center">Que veux-tu faire ?</h1>
     <div class="choix-accueil">
       <button class="grand-choix" id="vers-amenager"><span class="gc-ico" aria-hidden="true">✋</span><b>Aménager ma fiche</b><small>Prends en photo ta fiche d’exercices : elle devient un exercice à faire au toucher.</small></button>
+      <button class="grand-choix" id="vers-reviser"><span class="gc-ico" aria-hidden="true">📝</span><b>Faire ma fiche de révision</b><small>Prends en photo ton cours ou ta page de livre : tu obtiens une fiche de révision ou une carte mentale avec les mots importants.</small></button>
       <button class="grand-choix" id="vers-apprendre"><span class="gc-ico" aria-hidden="true">📜</span><b>Apprendre par cœur</b><small>Une poésie, une leçon, une règle… : tu l’écoutes, puis tu la récites avec de l’aide, puis tout seul.</small></button>
     </div>
     ${dernier() ? `<button class="discret" id="reprendre">Reprendre mon dernier exercice</button>` : ''}
     <button class="discret" id="sortir">Changer de code de classe</button>
+    <p class="hint ia">Cette appli fonctionne avec une intelligence artificielle. Elle peut se tromper : vérifie avec ton cours ou demande à un adulte.</p>
   </div>`;
   window.scrollTo(0, 0);
   $('#vers-amenager').onclick = () => ecranPrep();
   $('#vers-apprendre').onclick = () => Apprendre.ecran();
+  $('#vers-reviser').onclick = () => ecranRevision();
   const rp = $('#reprendre'); if (rp) rp.onclick = () => { const d = dernier(); if (d) ecranJeu(d.doc, d.reserves); };
   $('#sortir').onclick = () => { st.code = ''; lsSet('am-code', null); ecranCode(); };
 }
@@ -133,7 +137,7 @@ function ecranPrep(msg){
     <details style="margin-top:14px"><summary class="hint" style="cursor:pointer">Préciser (facultatif)</summary>
       <label for="matiere" class="hint">Matière</label>
       <input type="text" id="matiere" value="${esc(st.matiere)}" placeholder="ex. Mathématiques">
-      <label for="consignes" class="hint">Consignes pour Claude</label>
+      <label for="consignes" class="hint">Une précision ?</label>
       <textarea id="consignes" rows="2" placeholder="ex. seulement l’exercice 3">${esc(st.consignes)}</textarea>
       <p class="hint">Je réponds avec la main :</p>
       <div class="choix2"><button class="btn" data-main="gauche" aria-pressed="${st.main === 'gauche'}">✋ Gauche</button><button class="btn" data-main="droite" aria-pressed="${st.main === 'droite'}">Droite 🤚</button></div>
@@ -185,7 +189,7 @@ async function preparer(){
   if (!st.photos.length){ setMsg('Prends d’abord une photo de la fiche.', true); return; }
   if (st.profils.includes('allo') && !st.langue){ setMsg('Choisis la langue de l’élève.', true); return; }
   st.ctl = new AbortController();
-  const etapes = ['Claude lit la fiche…', 'Claude prépare les questions…', 'Claude vérifie chaque numéro…', 'Presque fini…'];
+  const etapes = ['Je lis ta fiche…', 'Je prépare les questions…', 'Je vérifie chaque numéro…', 'Presque fini…'];
   app.innerHTML = `<div class="ecran attente"><div class="rond" aria-hidden="true"></div><h1 id="etape">${etapes[0]}</h1><p class="hint">Souvent entre 30 secondes et 2 minutes. Garde l’appli ouverte.</p><button class="btn" id="stop" style="margin-top:20px">Arrêter</button></div>`;
   let n = 0; const t = setInterval(() => { n = Math.min(n + 1, etapes.length - 1); const e = $('#etape'); if (e) e.textContent = etapes[n]; }, 25000);
   $('#stop').onclick = () => st.ctl.abort();
@@ -266,11 +270,16 @@ function ecranJeu(doc, reserves){
 /* copie A4 : la même que dans l'atelier, avec les réponses de l'élève (sans correction) */
 function construireCopie(doc){
   const host = $('#copie'); host.innerHTML = '';
+  host.classList.toggle('paysage', doc.kind === 'mcm');
+  if (doc.kind === 'mcm' || doc.kind === 'fiche') return Revision.copie(doc, host);
   const p = (doc.profils || []).includes('dys') ? 'dys' : (doc.profils || []).includes('tdah') ? 'tdah' : 'std';
   Exo.construire(doc, p, {copie: 'eleve'}, host);
   return [...host.querySelectorAll('.pg')];
 }
 async function imprimer(doc){
+  // la carte mentale s'imprime en paysage, tout le reste en portrait
+  let pg = document.getElementById('page-css'); if (!pg){ pg = document.createElement('style'); pg.id = 'page-css'; document.head.append(pg); }
+  pg.textContent = doc.kind === 'mcm' ? '@media print{@page{size:A4 landscape;margin:0}}' : '';
   try { construireCopie(doc); await attendreChargement($('#copie')); construireCopie(doc); await attendreChargement($('#copie')); } catch(e){}
   window.print();
 }
@@ -307,8 +316,9 @@ async function copie(doc, quoi){
     for (const pg of pages) toiles.push(await window.html2canvas(pg, {scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false}));
     let fichiers;
     if (quoi === 'pdf'){
-      const pdf = new window.jspdf.jsPDF({unit: 'mm', format: 'a4'});
-      toiles.forEach((cv, i) => { if (i) pdf.addPage(); pdf.addImage(cv.toDataURL('image/jpeg', .9), 'JPEG', 0, 0, 210, 297); });
+      const pay = cv => cv.width > cv.height;
+      const pdf = new window.jspdf.jsPDF({unit: 'mm', format: 'a4', orientation: pay(toiles[0]) ? 'landscape' : 'portrait'});
+      toiles.forEach((cv, i) => { if (i) pdf.addPage('a4', pay(cv) ? 'landscape' : 'portrait'); pdf.addImage(cv.toDataURL('image/jpeg', .9), 'JPEG', 0, 0, pay(cv) ? 297 : 210, pay(cv) ? 210 : 297); });
       fichiers = [new File([pdf.output('blob')], nom + '.pdf', {type: 'application/pdf'})];
     } else {
       fichiers = [];
@@ -328,6 +338,108 @@ async function copie(doc, quoi){
     };
   } catch(e){
     f.querySelector('.boite').innerHTML = `<p>La copie n’a pas pu être préparée (vérifie la connexion internet). Tu peux utiliser <b>Imprimer</b> à la place.</p><div class="rang"><button class="btn" data-fermer>Fermer</button></div>`;
+  }
+}
+
+/* ---------- Ma fiche de révision / Ma carte mentale ---------- */
+const derniereRevision = () => { try { return JSON.parse(lsGet('am-revision') || 'null'); } catch(e){ return null; } };
+function sauverRevision(doc, infos){
+  const o = {doc, infos};
+  if (!lsSet('am-revision', JSON.stringify(o))){ const d = JSON.parse(JSON.stringify(doc)); d.branches.forEach(b => { b.items = b.items.filter(it => it.type !== 'image'); }); lsSet('am-revision', JSON.stringify({doc: d, infos})); }
+}
+const ctxRevision = () => ({app, esc, appeler, st, setMsg, sauver: sauverRevision, copie, imprimer,
+  nouvelle: () => { oublierPhotos(); ecranRevision(); }, accueil: () => { oublierPhotos(); ecranAccueil(); }, codePerdu});
+function ecranRevision(msg){
+  Exo.cssProfs();
+  const vign = st.photos.map((p, i) => `<div class="ph"><img src="${p.url}" alt="Photo ${i + 1}"><button data-del="${i}" aria-label="Retirer la photo ${i + 1}">✕</button></div>`).join('');
+  const d = derniereRevision();
+  app.innerHTML = `<div class="ecran">
+    ${boutonAccueil()}
+    <h1>📝 Ma fiche de révision</h1>
+    <p class="hint">Prends en photo ton cours ou ta page de livre. Une photo par page, bien à plat, avec de la lumière. Pas de nom d’élève sur la photo.</p>
+    <div class="rang">
+      <button class="btn pri" id="cam">📷 Prendre une photo</button>
+      <button class="btn" id="pick">🖼 Choisir</button>
+    </div>
+    <input type="file" id="f-cam" accept="image/*" capture="environment" hidden>
+    <input type="file" id="f-pick" accept="image/*" multiple hidden>
+    ${vign ? `<div class="photos">${vign}</div>` : ''}
+
+    <h2>Je veux…</h2>
+    <div class="choix2" role="group" aria-label="Fiche ou carte mentale ?">
+      <button class="btn" data-rev="fiche" aria-pressed="${st.revType === 'fiche'}">📝 Une fiche de révision<small>l’essentiel, les mots à connaître, je me teste</small></button>
+      <button class="btn" data-rev="carte" aria-pressed="${st.revType === 'carte'}">🧠 Une carte mentale<small>tout le cours sur une page</small></button>
+    </div>
+
+    <h2>Pour qui ?</h2>
+    ${Exo.boutonsProfils(st.profils, 'data-prof')}
+    <p class="hint">Aucun bouton : version standard.</p>
+
+    <h2><label for="classe">Classe</label></h2>
+    <select id="classe"><option value="">Choisir…</option>${CLASSES.map(c => `<option${c === st.classe ? ' selected' : ''}>${c}</option>`).join('')}</select>
+
+    <details style="margin-top:14px"><summary class="hint" style="cursor:pointer">Préciser (facultatif)</summary>
+      <label for="matiere" class="hint">Matière</label>
+      <input type="text" id="matiere" value="${esc(st.matiere)}" placeholder="ex. Histoire">
+      <label for="consignes" class="hint">Une précision ?</label>
+      <textarea id="consignes" rows="2" placeholder="ex. seulement la partie sur Louis XIV">${esc(st.consignes)}</textarea>
+    </details>
+
+    <button class="btn pri large" id="go" style="margin-top:20px">✨ Préparer ma ${st.revType === 'carte' ? 'carte mentale' : 'fiche'}</button>
+    <div id="msg" class="msg" role="status"></div>
+    ${d && d.doc ? `<button class="discret" id="reprendre-rev">Reprendre ma dernière ${d.doc.kind === 'mcm' ? 'carte mentale' : 'fiche'} : ${esc(d.doc.title)}</button>` : ''}
+  </div>`;
+  brancherAccueil();
+  if (msg) setMsg(msg, true);
+  const ajouter = async files => {
+    lireChamps();
+    for (const f of files){
+      if (st.photos.length >= 6){ setMsg('6 photos au maximum.', true); break; }
+      try { const b = await versJpeg(f); st.photos.push({blob: b, url: URL.createObjectURL(b)}); } catch(e){ setMsg('Cette photo n’a pas pu être lue.', true); }
+    }
+    ecranRevision();
+  };
+  $('#cam').onclick = () => $('#f-cam').click();
+  $('#pick').onclick = () => $('#f-pick').click();
+  $('#f-cam').onchange = e => ajouter([...e.target.files]);
+  $('#f-pick').onchange = e => ajouter([...e.target.files]);
+  app.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { lireChamps(); const p = st.photos.splice(+b.dataset.del, 1)[0]; if (p) URL.revokeObjectURL(p.url); ecranRevision(); });
+  app.querySelectorAll('[data-rev]').forEach(b => b.onclick = () => { lireChamps(); st.revType = b.dataset.rev; garder(); ecranRevision(); });
+  app.querySelectorAll('[data-prof]').forEach(b => b.onclick = () => { lireChamps(); const k = b.dataset.prof, i = st.profils.indexOf(k); if (i >= 0) st.profils.splice(i, 1); else st.profils.push(k); garder(); ecranRevision(); });
+  $('#classe').onchange = () => { st.classe = $('#classe').value; garder(); };
+  $('#go').onclick = preparerRevision;
+  const rp = $('#reprendre-rev'); if (rp) rp.onclick = () => Revision.ecran(ctxRevision(), d.doc, d.infos);
+}
+async function preparerRevision(){
+  lireChamps();
+  if (!st.photos.length){ setMsg('Prends d’abord une photo de ton cours.', true); return; }
+  st.ctl = new AbortController();
+  const carte = st.revType === 'carte';
+  const etapes = ['Je lis ton cours…', 'Je repère les mots importants…', carte ? 'Je dessine ta carte…' : 'J’écris ta fiche…', 'Je vérifie chaque fait…', 'Presque fini…'];
+  app.innerHTML = `<div class="ecran attente"><div class="rond" aria-hidden="true"></div><h1 id="etape">${etapes[0]}</h1><p class="hint">Souvent entre 30 secondes et 2 minutes. Garde l’appli ouverte.</p><button class="btn" id="stop" style="margin-top:20px">Arrêter</button></div>`;
+  let n = 0; const t = setInterval(() => { n = Math.min(n + 1, etapes.length - 1); const e = $('#etape'); if (e) e.textContent = etapes[n]; }, 20000);
+  $('#stop').onclick = () => st.ctl.abort();
+  try {
+    let images = await Promise.all(st.photos.map(p => enBase64(p.blob)));
+    for (const [cote, q] of [[1300, .75], [1000, .7]]){
+      if (images.reduce((n, x) => n + x.length, 0) < 3800000) break;
+      for (const p of st.photos) p.blob = await versJpeg(p.blob, cote, q);
+      images = await Promise.all(st.photos.map(p => enBase64(p.blob)));
+    }
+    const version = Revision.versionDe(st.profils);
+    const j = await appeler({action: 'reviser', code: st.code, type: st.revType, version, classe: st.classe, matiere: st.matiere, consignes: st.consignes, images}, st.ctl.signal);
+    const rep = j.resultat;
+    const doc = Revision.depuisBrouillon(rep.brouillons[0], {subject: st.matiere || String(rep.brouillons[0].matiere || '').slice(0, 60), level: st.classe, author: '', _v: version});
+    await Revision.materialiser(doc, st.photos.map(p => p.blob));   // les illustrations sont découpées ici, sur le téléphone
+    clearInterval(t);
+    const infos = {reserves: String(rep.reserves || '').slice(0, 600), verifs: (Array.isArray(rep.verifications) ? rep.verifications : []).slice(0, 12).map(v => ({cours: String(v && v.cours || '').slice(0, 200), correction: String(v && v.correction || '').slice(0, 300), pourquoi: String(v && v.pourquoi || '').slice(0, 300)}))};
+    oublierPhotos();
+    sauverRevision(doc, infos);
+    Revision.ecran(ctxRevision(), doc, infos);
+  } catch(e){
+    clearInterval(t);
+    if (e && e.code === 'code'){ codePerdu(); return; }
+    ecranRevision((e && e.message) || 'Ça n’a pas marché. Réessaie.');
   }
 }
 

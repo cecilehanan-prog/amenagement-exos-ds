@@ -1,5 +1,5 @@
 {
   "functions": {
-    "api/amenager.js": { "maxDuration": 300, "includeFiles": "exo.js" }
+    "api/amenager.js": { "maxDuration": 300, "includeFiles": "{exo.js,pictos.js,revision-consigne.js}" }
   }
 }
