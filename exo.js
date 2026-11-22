@@ -101,6 +101,9 @@ const PROFILS_EXO = {dys: {label: 'Dys', mark: '▲', c: '#c0392b', aide: 'consi
   tsa: {label: 'TSA', mark: '◆', c: '#6d4fb3', aide: 'programme annoncé au début, frise des questions, étapes, messages littéraux'},
   hpi: {label: 'HPI', mark: '★', c: '#d4870b', aide: 'tout l\u2019exercice d\u2019un coup, questions défi à la fin, peu de répétitions'},
   dyscal: {label: 'Dyscalculie', mark: '✚', c: '#b5651d', aide: 'tables de multiplication à portée de main, étapes guidées, calculatrice si le PAP l\u2019autorise'},
+  dyspra: {label: 'Dyspraxie / dysgraphie', mark: '⬢', c: '#2f6fb0', aide: 'très grandes zones à toucher, rien à taper ni à tracer, pas de recopie'},
+  dysphas: {label: 'Dysphasie', mark: '◐', c: '#c2185b', aide: 'consigne en phrases très courtes, ouverte d\u2019office, avec pictogrammes, lue à voix haute'},
+  audit: {label: 'Trouble auditif', mark: '◍', c: '#00838f', aide: 'tout est écrit, rien seulement à l\u2019oral, réponses juste/faux bien visibles'},
   malvoy: {label: 'Malvoyance', mark: '◉', c: '#1d3557', aide: 'très gros caractères, contraste fort, tout est lu à voix haute'},
   allo: {label: 'Allophone', mark: '🌍', c: '#2a9d8f', aide: 'consigne traduite dans la langue de l\u2019élève, lue à voix haute'}};
 /* langues proposées pour le profil Allophone (code de la synthèse vocale, nom, sens d'écriture) */
@@ -188,7 +191,7 @@ Aides préparées d'avance (l'enseignante choisira d'un bouton pour quel élève
 - "simple" sur chaque question : une aide en plus que tout élève peut ouvrir (Dys, TDA-H, HPI ou non), affichée SOUS l'énoncé exact (elle ne le remplace jamais : "enonce" reste mot pour mot). La consigne redite plus simplement, au sens propre : sans expression imagée, sans sous-entendu, tout ce qu'il faut faire est dit (utile aussi aux élèves TSA). Phrases courtes, mots courants, le verbe d'action en premier, le même numéro au début. Exactement la même demande : ne donne ni la réponse, ni la méthode, ni d'indice en plus. Découpe avec | les mots longs ou difficiles en syllabes (ex. « ad|di|tion », « pho|to|syn|thè|se »).
 - "etapes" sur chaque question : 2 à 4 étapes très courtes, dans l'ordre, pour un élève TDA-H qui se perd dans une consigne longue ou un élève TSA qui a besoin de savoir exactement quoi faire (sens propre, sans sous-entendu) (ex. ["Regarde le DOC. 3", "Cherche le mot qui manque", "Touche ta réponse"]). Pas la réponse.
 - À la fin, 1 ou 2 questions défi pour un élève HPI ("defi": true) : plus exigeantes, sur le même contenu (raisonner, justifier, relier, généraliser), d'un des types ci-dessous ; "enonce" commence par « Défi : ». Ce sont les seules questions qui ne viennent pas de la page. Pas de "simple" ni d'"etapes" pour elles.
-${g.langue ? `- "trad" sur chaque question : l'énoncé EXACT traduit fidèlement en ${g.langue} (mêmes numéros, mêmes nombres, mêmes noms de documents, rien d'ajouté ni d'enlevé), et "consigne_trad" : la consigne pour l'élève traduite en ${g.langue}. L'élève apprend le français : "enonce", "simple", les choix et les réponses restent en français.\n` : ''}${(g.profils || []).indexOf('dys') >= 0 ? `- Élève dyslexique : le moins de rédaction possible. Une question « rédige », « explique », « justifie » devient de préférence des choix, un texte à trous ou un vrai ou faux qui demandent la même chose ; « long » seulement si c'est impossible, 2 phrases au plus.\n` : ''}Réponds uniquement avec un objet JSON :
+${g.langue ? `- "trad" sur chaque question : l'énoncé EXACT traduit fidèlement en ${g.langue} (mêmes numéros, mêmes nombres, mêmes noms de documents, rien d'ajouté ni d'enlevé), et "consigne_trad" : la consigne pour l'élève traduite en ${g.langue}. L'élève apprend le français : "enonce", "simple", les choix et les réponses restent en français.\n` : ''}${(g.profils || []).indexOf('dyspra') >= 0 ? `- Élève dyspraxique ou dysgraphique (geste difficile) : AUCUNE réponse à taper en entier ni à tracer. Pas de "court" ni de "long" : à la place, des choix (qcm), un vrai ou faux, des étiquettes à placer (trous avec intrus), relier ou classer, qui demandent la même chose. Pas d'opération posée case par case ("pose") : prends le CALCUL DÉVELOPPÉ À CHOISIR. Pas plus de 4 choix par question, des choix courts. En géométrie, jamais de tracé : des constructions à choisir (qcm avec "traces"). Une question « recopie » ou « écris » devient un choix de la bonne forme.\n` : ''}${(g.profils || []).indexOf('dysphas') >= 0 ? `- Élève dysphasique (trouble du langage oral et de la compréhension) : "simple" en phrases de 8 mots au plus, une seule idée par phrase, des mots très courants, au présent, à la forme affirmative (pas de double négation, pas de pronom ambigu : redis le nom). Commence "simple" par un pictogramme qui montre l'action (👆 touche, 🔗 relie, ✏️ complète, 🔢 range, 📂 classe, ✔️ vrai ou faux). Les choix sont courts aussi, sans tournure compliquée. Le vocabulaire de la leçon (mots à apprendre) est gardé tel quel.\n` : ''}${(g.profils || []).indexOf('audit') >= 0 ? `- Élève avec un trouble auditif : tout doit pouvoir se faire en lisant, rien seulement à l'oral. Si un exercice de la page demande d'écouter (dictée, enregistrement, « écoute et… »), garde-le en mettant le texte à écouter écrit dans "enonce" s'il est imprimé sur la page ; sinon, dis-le dans "reserves" (l'adulte devra l'écrire). Pas de question sur des sons, des rimes entendues ou des syllabes orales sans support écrit. Explique dans "simple" les mots peu courants de la consigne.\n` : ''}${(g.profils || []).indexOf('dys') >= 0 ? `- Élève dyslexique : le moins de rédaction possible. Une question « rédige », « explique », « justifie » devient de préférence des choix, un texte à trous ou un vrai ou faux qui demandent la même chose ; « long » seulement si c'est impossible, 2 phrases au plus.\n` : ''}Réponds uniquement avec un objet JSON :
 {"reserves":"ce qui est illisible ou à vérifier, ou chaîne vide",${g.langue ? '"consigne_trad":"…",' : ''}"titre":"matière, page ou numéro d'exercice et thème, tels qu'écrits sur la page","consigne":"une phrase pour l'élève (ex. « Regarde les DOC. 3 et 4 de la page, puis touche les bonnes réponses. »)","questions":[ … ]}
 Formes des questions :
 {"type":"qcm","enonce":"…","simple":"…","etapes":["…","…"],"choix":["…","…","…"],"bonnes":[1],"plusieurs":false}   (indices à partir de 0 ; "simple" et "etapes" se mettent de la même façon sur tous les types)
@@ -223,11 +226,14 @@ function lecteur(root, exo, reps, save, opts){
   var crayon = 0, selF = null;
   var aide = false, etFaites = {}, pauses = {}, annonce = tsa && !opts.debut && !opts.pasFocus;   // annonce : TSA, le programme s'affiche avant la 1re question   // aide : l'élève (quel que soit son profil) a ouvert « Dit plus simplement » (l'énoncé du livre reste affiché)
   var dyscal = profils.indexOf('dyscal') >= 0, malvoy = profils.indexOf('malvoy') >= 0, allo = profils.indexOf('allo') >= 0 && !!exo.langue;
-  var liste = hpi && !tdah && !tsa && !opts.une;   // HPI : tout l'exercice d'un coup (sauf si TDA-H ou TSA demandent une question à la fois)
+  var dyspra = profils.indexOf('dyspra') >= 0, dysphas = profils.indexOf('dysphas') >= 0, audit = profils.indexOf('audit') >= 0;
+  if (dysphas) aide = true;   // Dysphasie : « Dit plus simplement » ouvert d'office (l'énoncé exact reste affiché au-dessus)
+  var liste = hpi && !tdah && !tsa && !dyspra && !dysphas && !opts.une;   // HPI : tout l'exercice d'un coup (sauf si TDA-H ou TSA demandent une question à la fois)
   var calcOk = !!((exo.adapt || {}).calculatrice || opts.calculatrice), lus = {}, voirTrad = true, selPose = null;
   var RTL = ['ar', 'fa', 'ps', 'ur'], Reco = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
   root.classList.toggle('p-dys', dys); root.classList.toggle('p-tdah', tdah); root.classList.toggle('p-hpi', hpi); root.classList.toggle('p-tsa', tsa);
   root.classList.toggle('p-dyscal', dyscal); root.classList.toggle('p-malvoy', malvoy); root.classList.toggle('p-liste', liste);
+  root.classList.toggle('p-dyspra', dyspra); root.classList.toggle('p-dysphas', dysphas); root.classList.toggle('p-audit', audit);
   if (malvoy && root.parentNode && root.parentNode.style) root.parentNode.style.background = '#fff';
   if (dys && root.parentNode && root.parentNode.style) root.parentNode.style.background = '#fdf6e3';
   var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
@@ -406,6 +412,7 @@ function lecteur(root, exo, reps, save, opts){
     cv.onpointermove = function(e){ if (!cur) return; cur.push(pt(e)); dessiner(); };
     cv.onpointerup = cv.onpointercancel = function(){ cur = null; };
     var zone = v.querySelector('textarea'), modif = false;
+    if (dyspra){ v.querySelectorAll('[data-m]').forEach(function(b){ b.classList.toggle('on', b.dataset.m === 'clavier'); }); v.querySelectorAll('[data-p]').forEach(function(d){ d.hidden = d.dataset.p !== 'clavier'; }); }
     v.onclick = function(e){
       var m = e.target.closest('[data-m]'), t = e.target.closest('[data-t]'), a = e.target.closest('[data-e]');
       if (m){ v.querySelectorAll('[data-m]').forEach(function(b){ b.classList.toggle('on', b === m); }); v.querySelectorAll('[data-p]').forEach(function(d){ d.hidden = d.dataset.p !== m.dataset.m; }); return; }
@@ -788,6 +795,16 @@ p.xq-trad{display:block}
 .xq.p-dys .xq-simple,.xq.p-dys .xq-vf p,.xq.p-dys .xq-trad span{line-height:1.7em;background-image:repeating-linear-gradient(to bottom,transparent 0 1.7em,rgba(31,95,168,.09) 1.7em 3.4em);background-origin:content-box}
 .xq.p-dys .xq-texte{background-image:repeating-linear-gradient(to bottom,transparent 0 2.4em,rgba(31,95,168,.09) 2.4em 4.8em);background-origin:content-box}
 /* Malvoyance : très gros, contraste fort */
+/* Dyspraxie / dysgraphie : grandes cibles bien espacées, rien de petit à viser */
+.xq.p-dyspra .xq-opt{min-height:80px;padding:18px 20px;margin-bottom:16px;font-size:1.08em}
+.xq.p-dyspra .xq-duo,.xq.p-dyspra .xq-rel{gap:16px}
+.xq.p-dyspra .xq-btn{min-height:72px;min-width:80px}
+.xq.p-dyspra .xq-son,.xq.p-dyspra .xq-petit{min-height:56px;padding:10px 16px}
+.xq.p-dyspra .xq-cle,.xq.p-dyspra .xq-box{width:48px;height:48px}
+/* Dysphasie : l'aide simplifiée bien visible */
+.xq.p-dysphas .xq-simple{font-size:1.12em;line-height:1.6;border-style:solid;border-color:#c2185b;background:#fff5f9}
+/* Trouble auditif : tout se voit, le juste et le faux en grand */
+.xq.p-audit .xq-verdict{font-size:1.2em;padding:14px 16px;border:3px solid currentColor}
 .xq.p-malvoy{font-size:28px;color:#000}.xq.p-malvoy .xq-enonce{font-size:34px;color:#000}
 .xq.p-malvoy .xq-opt{border:4px solid #000;min-height:84px;background:#fff}.xq.p-malvoy .xq-opt.on{background:#ffe600;border-color:#000}
 .xq.p-malvoy .xq-btn{font-size:26px;min-height:76px;border-width:4px}.xq.p-malvoy .xq-btn.pri{background:#000;border-color:#000}
