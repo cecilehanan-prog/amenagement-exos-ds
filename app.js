@@ -86,7 +86,6 @@ function ecranAccueil(){
     <div class="logo" aria-hidden="true">🎒</div>
     <h1 style="text-align:center">Que veux-tu faire ?</h1>
     <div class="choix-accueil">
-      <button class="grand-choix" id="vers-reviser"><span class="gc-ico" aria-hidden="true">📝</span><b>Faire ma fiche de révision</b><small>Prends en photo ton cours ou ta page de livre : tu obtiens une fiche de révision ou une carte mentale avec les mots importants.</small></button>
       <button class="grand-choix" id="vers-apprendre"><span class="gc-ico" aria-hidden="true">📜</span><b>Apprendre par cœur</b><small>Une poésie, une leçon, une règle… : tu l’écoutes, puis tu la récites avec de l’aide, puis tout seul.</small></button>
       <button class="grand-choix" id="vers-amenager"><span class="gc-ico" aria-hidden="true">✋</span><b>Aménager mon exercice ou mon devoir</b><small>Prends en photo ton exercice ou ton devoir : il devient un exercice à faire au toucher.</small></button>
     </div>
@@ -97,7 +96,7 @@ function ecranAccueil(){
   window.scrollTo(0, 0);
   $('#vers-amenager').onclick = () => ecranPrep();
   $('#vers-apprendre').onclick = () => Apprendre.ecran();
-  $('#vers-reviser').onclick = () => ecranRevision();
+  // « Faire ma fiche de révision » : retiré de l'appli élève (Hanan le fait dans son Atelier). Le code reste dans revision.js.
   const rp = $('#reprendre'); if (rp) rp.onclick = () => { const d = dernier(); if (d) ecranJeu(d.doc, d.reserves); };
   $('#sortir').onclick = () => { st.code = ''; lsSet('am-code', null); ecranCode(); };
 }
